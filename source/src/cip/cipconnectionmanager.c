@@ -346,8 +346,8 @@ EipStatus HandleNullNonMatchingForwardOpenRequest(
 	CipDword class_c = connection_object->configuration_path.class_id;//consumed_path.class_id;
 	CipDword inst_c = connection_object->configuration_path.instance_id;//consumed_path.instance_id;
 
+	//TODO: remove
 	OPENER_TRACE_INFO("configuration_path:\nclass:%d\ninstance:%d\n",class_c,inst_c);
-
 	OPENER_TRACE_INFO("consumed_path:\nclass:%d\ninstance:%d\n",connection_object->consumed_path.class_id, connection_object->consumed_path.instance_id);
 
 
@@ -370,28 +370,37 @@ EipStatus HandleNullNonMatchingForwardOpenRequest(
 	if (g_config_data_length > 0)
 	{
 		OPENER_TRACE_INFO("g_config_data_length: %d\n",g_config_data_length);
-		//configure a device’s application
+
+		//TODO: configure a device’s application
+
 	}
 	else{
-		OPENER_TRACE_INFO("No data segment\n");
+		OPENER_TRACE_INFO("No data segment\n"); //TODO: remove
 
 
-		if(connection_object->configuration_path.class_id == 1 && //TODO: use constant cip_identity
-		connection_object->configuration_path.instance_id == 1)
+		if(connection_object->configuration_path.class_id == kCipIdentityClassCode &&
+		connection_object->configuration_path.instance_id == 1) //TODO: use constant cip_identity
 		{
 
-			//Ping a device
+			//Ping a device, TODO: return Success ???
 			OPENER_TRACE_INFO("Ping a device\n");
 			// Electronic key sagment ???
 
 			return AssembleForwardOpenResponse(
 			    connection_object,
 			    message_router_response,
-				kCipErrorSuccess,
-				kConnectionManagerGeneralStatusSuccess);
+//				kCipErrorSuccess,
+//				kConnectionManagerGeneralStatusSuccess);
+				kCipErrorConnectionFailure, //TODO: update
+			    kConnectionManagerExtendedStatusCodeNullForwardOpenNotSupported);
 		}
-		else{
-			// invalid ???
+		else{ // invalid path
+
+			return AssembleForwardOpenResponse(
+				connection_object,
+				message_router_response,
+				kCipErrorConnectionFailure,
+				kConnectionManagerExtendedStatusCodeInvalidConfigurationApplicationPath);
 		}
 	}
 
@@ -423,13 +432,38 @@ EipStatus HandleNullMatchingForwardOpenRequest(
   CipMessageRouterResponse *message_router_response
   ) {
 
-	/*TODO: check if data segment present in Application path
-	 *
+	/*TODO: check if data segment present in Application path: g_config_data_length > 0
 
+			YES:  Path is for configuration
 
+			NO:	error
+
+			-A configuration application path and data segment shall be included in the request and they
+				are sent to the application to change the application configuration.
+
+			-If the entire configuration cannot be applied then none of the configuration shall be applied
+				and the appropriate error code returned.
+
+			-The connection shall not be interrupted due to this request.
 	*/
 
-	//g_config_data_length
+	EipUint16 connection_status = kConnectionManagerExtendedStatusCodeSuccess;
+
+		EipUint32 temp = ParseConnectionPath(&g_dummy_connection_object,
+		                                       message_router_request,
+		                                       &connection_status);
+
+
+		if (g_config_data_length > 0)
+		{
+			OPENER_TRACE_INFO("g_config_data_length: %d\n",g_config_data_length);
+
+			//TODO: re-configure a device’s application, check if data correct
+
+		}
+		else{
+			//error
+		}
 
 
 	CipDword class_c = connection_object->configuration_path.class_id;
