@@ -343,15 +343,6 @@ EipStatus HandleNullNonMatchingForwardOpenRequest(
   CipMessageRouterResponse *message_router_response
   ) {
 
-	//TODO: remove trace
-//	CipDword class_c = connection_object->configuration_path.class_id;//consumed_path.class_id;
-//	CipDword inst_c = connection_object->configuration_path.instance_id;//consumed_path.instance_id;
-
-//	OPENER_TRACE_INFO("configuration_path:\nclass:%d\ninstance:%d\n",class_c,inst_c);
-//	OPENER_TRACE_INFO("consumed_path:\nclass:%d\ninstance:%d\n",connection_object->consumed_path.class_id, connection_object->consumed_path.instance_id);
-
-
-
 	/*TODO: check if data segment present in Application path: g_config_data_length > 0
 
 		YES:  Path is for configuration
@@ -362,7 +353,7 @@ EipStatus HandleNullNonMatchingForwardOpenRequest(
 
 	EipUint16 connection_status = kConnectionManagerExtendedStatusCodeSuccess;
 
-	EipUint32 temp = ParseConnectionPath(&g_dummy_connection_object,
+	EipUint32 temp = ParseConnectionPath(&g_dummy_connection_object, //TODO: write new custom function for NFO
 	                                       message_router_request,
 	                                       &connection_status);
 	if (kEipStatusOk != temp) {
@@ -390,7 +381,7 @@ EipStatus HandleNullNonMatchingForwardOpenRequest(
 		 * •No connection is established.
 
 		 */
-		OPENER_TRACE_INFO("Configure a device’s application\n"); //TODO: update
+		OPENER_TRACE_INFO("Configure a device’s application\n"); //TODO: update/remove ?
 
 			return AssembleForwardOpenResponse(
 				connection_object,
@@ -402,43 +393,38 @@ EipStatus HandleNullNonMatchingForwardOpenRequest(
 	else{
 		OPENER_TRACE_INFO("No data segment\n"); //TODO: remove
 
-
-		if(connection_object->configuration_path.class_id == kCipIdentityClassCode &&
-		connection_object->configuration_path.instance_id == 1) //TODO: use constant cip_identity
+		if(kCipIdentityClassCode == connection_object->configuration_path.class_id &&
+				1 == connection_object->configuration_path.instance_id) // path “20 01 24 01” is used to ping a device
 		{
-
-			//Ping a device, TODO: return Success ???
 			OPENER_TRACE_INFO("Ping a device\n");
-			// Electronic key sagment may be included ???
+			// Electronic key sagment may be included ??? - checked in ParseConnectionPath ??
 			// No connection is established
 
 			return AssembleForwardOpenResponse(
 			    connection_object,
 			    message_router_response,
-//				kCipErrorSuccess,
-//				kConnectionManagerGeneralStatusSuccess);
-				kCipErrorConnectionFailure, //TODO: update status
-			    kConnectionManagerExtendedStatusCodeNullForwardOpenNotSupported);
+				kCipErrorSuccess,
+				kConnectionManagerGeneralStatusSuccess);
 		}
 		else{ // invalid path
-
 			return AssembleForwardOpenResponse(
 				connection_object,
 				message_router_response,
 				kCipErrorConnectionFailure,
-				kConnectionManagerExtendedStatusCodeInvalidConfigurationApplicationPath); //TODO: check
+				kConnectionManagerExtendedStatusCodeInvalidConfigurationApplicationPath);
 		}
 	}
 
 	//TODO: remove
-	OPENER_TRACE_INFO("Right now we cannot handle Null requests_NFO_Non_Matching\n");
-
-	return AssembleForwardOpenResponse(
-		connection_object,
-		message_router_response,
-		kCipErrorConnectionFailure,
-		kConnectionManagerExtendedStatusCodeNullForwardOpenNotSupported);
+//	OPENER_TRACE_INFO("Right now we cannot handle Null requests_NFO_Non_Matching\n");
+//
+//	return AssembleForwardOpenResponse(
+//		connection_object,
+//		message_router_response,
+//		kCipErrorConnectionFailure,
+//		kConnectionManagerExtendedStatusCodeNullForwardOpenNotSupported);
 }
+
 
 /** @brief Handles a Null Matching Forward Open request
  *
@@ -476,7 +462,7 @@ EipStatus HandleNullMatchingForwardOpenRequest(
 
 	EipUint16 connection_status = kConnectionManagerExtendedStatusCodeSuccess;
 
-	EipUint32 temp = ParseConnectionPath(&g_dummy_connection_object,
+	EipUint32 temp = ParseConnectionPath(&g_dummy_connection_object, //TODO: write new custom function for NFO
 		                                       message_router_request,
 		                                       &connection_status);
 	if (kEipStatusOk != temp) {
@@ -488,11 +474,11 @@ EipStatus HandleNullMatchingForwardOpenRequest(
 
 	if (g_config_data_length > 0)
 	{
-		OPENER_TRACE_INFO("g_config_data_length: %d\n",g_config_data_length);
+		OPENER_TRACE_INFO("g_config_data_length: %d\n",g_config_data_length); //TODO: remove
 
-		/*TODO: re-configure a device’s application, check if data correct
+		/*TODO: re-configure a device’s application, check if data correct - see NFO_Non mathing configuration
 
-					YES:  Path is for configuration
+					YES:  Path is for re-configuration
 
 					NO:	error
 
@@ -504,7 +490,6 @@ EipStatus HandleNullMatchingForwardOpenRequest(
 
 					-The connection shall not be interrupted due to this request.
 			*/
-
 
 	}
 	else{
@@ -518,17 +503,15 @@ EipStatus HandleNullMatchingForwardOpenRequest(
 
 	OPENER_TRACE_INFO("configuration_path:\nclass:%d\ninstance:%d\n",class_c,inst_c);
 
-	OPENER_TRACE_INFO("consumed_path:\nclass:%d\ninstance:%d\n",connection_object->consumed_path.class_id, connection_object->consumed_path.instance_id);
-
 	OPENER_TRACE_INFO("Right now we cannot handle Null requests_NFO_Matching\n");
 
 	return AssembleForwardOpenResponse(
 		connection_object,
 		message_router_response,
-		kCipErrorSuccess,
-		kConnectionManagerGeneralStatusSuccess);
-	//    kCipErrorConnectionFailure,
-	//    kConnectionManagerExtendedStatusCodeNullForwardOpenNotSupported);
+//		kCipErrorSuccess,
+//		kConnectionManagerGeneralStatusSuccess);
+	    kCipErrorConnectionFailure,
+	    kConnectionManagerExtendedStatusCodeNullForwardOpenNotSupported);
 //#########################
 }
 
