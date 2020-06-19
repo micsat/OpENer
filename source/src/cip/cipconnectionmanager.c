@@ -532,7 +532,7 @@ EipStatus HandleNonNullMatchingForwardOpenRequest(
   CipMessageRouterRequest *message_router_request,
   CipMessageRouterResponse *message_router_response
   ) {
-  OPENER_TRACE_INFO("Right now we cannot handle reconfiguration requests\n");
+  OPENER_TRACE_INFO("Error: Connection in use or duplicate Forward_Open\n");
   return AssembleForwardOpenResponse(
     connection_object,
     message_router_response,
