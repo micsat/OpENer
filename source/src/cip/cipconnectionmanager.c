@@ -134,6 +134,22 @@ EipStatus CheckElectronicKeyData(
  *    - kEipStatusOk ... on success
  *    - On an error the general status code to be put into the response
  */
+EipUint8 ParseConnectionPath_NFO(
+  CipConnectionObject *connection_object,
+  CipMessageRouterRequest *message_router_request,
+  EipUint16 *extended_error);
+
+/** @brief Parse the connection path of a forward open request
+ *
+ * This function will take the connection object and the received data stream and parse the connection path.
+ * @param connection_object pointer to the connection object structure for which the connection should
+ *                      be established
+ * @param message_router_request pointer to the received request structure. The position of the data stream pointer has to be at the connection length entry
+ * @param extended_error the extended error code in case an error happened
+ * @return general status on the establishment
+ *    - kEipStatusOk ... on success
+ *    - On an error the general status code to be put into the response
+ */
 EipUint8 ParseConnectionPath(
   CipConnectionObject *connection_object,
   CipMessageRouterRequest *message_router_request,
@@ -353,7 +369,7 @@ EipStatus HandleNullNonMatchingForwardOpenRequest(
 
 	EipUint16 connection_status = kConnectionManagerExtendedStatusCodeSuccess;
 
-	EipUint32 temp = ParseConnectionPath(&g_dummy_connection_object, //TODO: write new custom function for NFO
+	EipUint32 temp = ParseConnectionPath_NFO(&g_dummy_connection_object, //TODO: write new custom function for NFO
 	                                       message_router_request,
 	                                       &connection_status);
 	if (kEipStatusOk != temp) {
@@ -386,8 +402,10 @@ EipStatus HandleNullNonMatchingForwardOpenRequest(
 			return AssembleForwardOpenResponse(
 				connection_object,
 				message_router_response,
-				kCipErrorConnectionFailure,
-				kConnectionManagerExtendedStatusCodeNullForwardOpenNotSupported);
+				kCipErrorSuccess,
+				kConnectionManagerGeneralStatusSuccess);
+//				kCipErrorConnectionFailure,
+//				kConnectionManagerExtendedStatusCodeNullForwardOpenNotSupported);
 
 	}
 	else{
@@ -397,7 +415,7 @@ EipStatus HandleNullNonMatchingForwardOpenRequest(
 				1 == connection_object->configuration_path.instance_id) // path “20 01 24 01” is used to ping a device
 		{
 			OPENER_TRACE_INFO("Ping a device\n");
-			// Electronic key sagment may be included ??? - checked in ParseConnectionPath ??
+			// Electronic key segment may be included ??? - checked in ParseConnectionPath ??
 			// No connection is established
 
 			return AssembleForwardOpenResponse(
@@ -462,7 +480,7 @@ EipStatus HandleNullMatchingForwardOpenRequest(
 
 	EipUint16 connection_status = kConnectionManagerExtendedStatusCodeSuccess;
 
-	EipUint32 temp = ParseConnectionPath(&g_dummy_connection_object, //TODO: write new custom function for NFO
+	EipUint32 temp = ParseConnectionPath_NFO(&g_dummy_connection_object, //TODO: write new custom function for NFO
 		                                       message_router_request,
 		                                       &connection_status);
 	if (kEipStatusOk != temp) {
@@ -476,7 +494,7 @@ EipStatus HandleNullMatchingForwardOpenRequest(
 	{
 		OPENER_TRACE_INFO("g_config_data_length: %d\n",g_config_data_length); //TODO: remove
 
-		/*TODO: re-configure a device’s application, check if data correct - see NFO_Non mathing configuration
+		/*TODO: re-configure a device’s application, check if data correct - see NFO_Non matching configuration
 
 					YES:  Path is for re-configuration
 
@@ -612,7 +630,7 @@ EipStatus HandleNonNullNonMatchingForwardOpenRequest(
  *
  * File scope variable
  * The first dimension handles if the request was a non-null request (0) or a null request (1),
- * the second dimension handles if the request was a non-matchin (0) or matching request (1)
+ * the second dimension handles if the request was a non-matching (0) or matching request (1)
  */
 static const HandleForwardOpenRequestFunction
   handle_forward_open_request_functions[2][2] =
@@ -1261,6 +1279,348 @@ EipStatus CheckElectronicKeyData(
   return
     (*extended_status == kConnectionManagerExtendedStatusCodeSuccess) ?
     kEipStatusOk : kEipStatusError;
+}
+
+EipUint8 ParseConnectionPath_NFO( //TODO: update for NFO request
+  CipConnectionObject *connection_object,
+  CipMessageRouterRequest *message_router_request,
+  EipUint16 *extended_error
+  ) {
+  const EipUint8 *message = message_router_request->data;
+  const size_t connection_path_size = GetSintFromMessage(&message); /* length in words */
+  size_t remaining_path = connection_path_size;
+  CipClass *class = NULL;
+
+  CipDword class_id = 0x0;
+  CipDword instance_id = 0x0;
+
+  /* with 256 we mark that we haven't got a PIT segment */
+  ConnectionObjectSetProductionInhibitTime(connection_object, 256);
+
+  size_t header_length = g_kForwardOpenHeaderLength;
+  if (connection_object->is_large_forward_open) {
+    header_length = g_kLargeForwardOpenHeaderLength;
+  }
+
+  if ( (header_length + remaining_path * 2)
+       < message_router_request->request_path_size ) {
+    /* the received packet is larger than the data in the path */
+    *extended_error = 0;
+    OPENER_TRACE_INFO("Message too long for path\n");
+    return kCipErrorTooMuchData;
+  }
+
+  if ( (header_length + remaining_path * 2)
+       > message_router_request->request_path_size ) {
+    /*there is not enough data in received packet */
+    *extended_error = 0;
+    OPENER_TRACE_INFO("Message not long enough for path\n");
+    return kCipErrorNotEnoughData;
+  }
+
+  if (remaining_path > 0) {
+    /* first look if there is an electronic key */
+    if ( kSegmentTypeLogicalSegment == GetPathSegmentType(message) ) {
+      if ( kLogicalSegmentLogicalTypeSpecial
+           == GetPathLogicalSegmentLogicalType(message) ) {
+        if ( kLogicalSegmentSpecialTypeLogicalFormatElectronicKey
+             == GetPathLogicalSegmentSpecialTypeLogicalType(message) ) {
+          if ( kElectronicKeySegmentFormatKeyFormat4
+               == GetPathLogicalSegmentElectronicKeyFormat(message) ) {
+            /* Check if there is enough data for holding the electronic key segment */
+            if (remaining_path < 5) {
+              *extended_error = 0;
+              OPENER_TRACE_INFO("Message not long enough for electronic key\n");
+              return kCipErrorNotEnoughData;
+            }
+            /* Electronic key format 4 found */
+            connection_object->electronic_key.key_format = 4;
+            ElectronicKeyFormat4 *electronic_key = ElectronicKeyFormat4New();
+            GetElectronicKeyFormat4FromMessage(&message, electronic_key);
+            /* logical electronic key found */
+            connection_object->electronic_key.key_data = electronic_key;
+
+
+            remaining_path -= 5; /*length of the electronic key*/
+            OPENER_TRACE_INFO(
+              "key: ven ID %d, dev type %d, prod code %d, major %d, minor %d\n",
+              ElectronicKeyFormat4GetVendorId(connection_object->electronic_key.
+                                              key_data),
+              ElectronicKeyFormat4GetDeviceType(connection_object->
+                                                electronic_key.key_data),
+              ElectronicKeyFormat4GetProductCode(connection_object->
+                                                 electronic_key.key_data),
+              ElectronicKeyFormat4GetMajorRevision(connection_object->
+                                                   electronic_key.key_data),
+              ElectronicKeyFormat4GetMinorRevision(connection_object->
+                                                   electronic_key.key_data) );
+            if ( kEipStatusOk
+                 != CheckElectronicKeyData(
+                   connection_object->electronic_key.key_format,
+                   connection_object->electronic_key.key_data,
+                   extended_error) ) {
+              ElectronicKeyFormat4Delete(&electronic_key);
+              return kCipErrorConnectionFailure;
+            }
+            ElectronicKeyFormat4Delete(&electronic_key);
+          }
+
+        } else {
+          OPENER_TRACE_INFO("no key\n");
+        }
+      }
+    }
+
+    //TODO: Refactor this afterwards
+//    if ( kConnectionObjectTransportClassTriggerProductionTriggerCyclic
+//         != ConnectionObjectGetTransportClassTriggerProductionTrigger(
+//           connection_object) ) {
+//      /*non cyclic connections may have a production inhibit */
+//      if ( kSegmentTypeNetworkSegment == GetPathSegmentType(message) ) {
+//        NetworkSegmentSubtype network_segment_subtype =
+//          GetPathNetworkSegmentSubtype(message);
+//        if (kNetworkSegmentSubtypeProductionInhibitTimeInMilliseconds
+//            == network_segment_subtype) {
+//          OPENER_TRACE_INFO("PIT segment available - value: %u\n",message[1]);
+//          connection_object->production_inhibit_time = message[1];
+//          message += 2;
+//          remaining_path -= 1;
+//        }
+//      }
+//    }
+
+    if (kSegmentTypeLogicalSegment == GetPathSegmentType(message) &&
+        kLogicalSegmentLogicalTypeClassId ==
+        GetPathLogicalSegmentLogicalType(message) ) {
+
+      class_id = CipEpathGetLogicalValue(&message);
+      class = GetCipClass(class_id);
+      if (NULL == class) {
+        OPENER_TRACE_ERR("classid %" PRIx32 " not found\n",
+                         class_id);
+
+        if (class_id >= 0xC8) { /*reserved range of class ids */
+          *extended_error =
+            kConnectionManagerExtendedStatusCodeErrorInvalidSegmentTypeInPath;
+        } else {
+          *extended_error =
+            kConnectionManagerExtendedStatusCodeInconsistentApplicationPathCombo;
+        }
+        return kCipErrorConnectionFailure;
+      }
+
+      OPENER_TRACE_INFO("classid %" PRIx32 " (%s)\n",
+                        class_id,
+                        class->class_name);
+    } else {
+      *extended_error =
+        kConnectionManagerExtendedStatusCodeErrorInvalidSegmentTypeInPath;
+      return kCipErrorConnectionFailure;
+    }
+    remaining_path -= 1; /* 1 16Bit word for the class part of the path */
+
+    /* Get instance ID */
+    if ( kSegmentTypeLogicalSegment == GetPathSegmentType(message) &&
+         kLogicalSegmentLogicalTypeInstanceId ==
+         GetPathLogicalSegmentLogicalType(message) ) {                                                                                                       /* store the configuration ID for later checking in the application connection types */
+      instance_id = CipEpathGetLogicalValue(&message);
+
+      OPENER_TRACE_INFO("Configuration instance id %" PRId32 "\n",
+                        instance_id);
+      if ( NULL == GetCipInstance(class, instance_id) ) {
+        /*according to the test tool we should respond with this extended error code */
+        *extended_error =
+          kConnectionManagerExtendedStatusCodeErrorInvalidSegmentTypeInPath;
+        return kCipErrorConnectionFailure;
+      }
+      /* 1 or 2 16Bit words for the configuration instance part of the path  */
+      remaining_path -= (instance_id > 0xFF) ? 2 : 1; //TODO: 32 bit case missing
+    } else {
+      OPENER_TRACE_INFO("no config data\n");
+    }
+
+    if ( kConnectionObjectTransportClassTriggerTransportClass3 ==
+         ConnectionObjectGetTransportClassTriggerTransportClass(
+           connection_object) )
+    {
+      /*we have Class 3 connection*/
+    	OPENER_TRACE_INFO("we have Class 3 connection\n"); //TODO: remove trace info
+      if (remaining_path > 0) {
+        OPENER_TRACE_WARN(
+          "Too much data in connection path for class 3 connection\n");
+        *extended_error =
+          kConnectionManagerExtendedStatusCodeErrorInvalidSegmentTypeInPath;
+        return kCipErrorConnectionFailure;
+      }
+
+      /* connection end point has to be the message router instance 1 */
+      if ( (class_id != kCipMessageRouterClassCode)
+           || (1 != instance_id) ) {
+        *extended_error =
+          kConnectionManagerExtendedStatusCodeInconsistentApplicationPathCombo;
+        return kCipErrorConnectionFailure;
+      }
+      /* Configuration connection point is producing connection point */
+      CipConnectionPathEpath connection_epath = {
+        .class_id = class_id,
+        .instance_id = instance_id,
+        .attribute_id_or_connection_point = 0
+      };
+
+      memcpy(&(connection_object->configuration_path),
+             &connection_epath,
+             sizeof(connection_object->configuration_path) );
+      memcpy(&(connection_object->produced_path), &connection_epath,
+             sizeof(connection_object->produced_path) );
+
+      /* End class 3 connection handling */
+    } else { /* we have an IO connection */
+      CipConnectionPathEpath connection_epath = {
+        .class_id = class_id,
+        .instance_id = instance_id,
+        .attribute_id_or_connection_point = 0
+      };
+      memcpy(&(connection_object->configuration_path),
+             &connection_epath,
+             sizeof(connection_object->configuration_path) );
+      ConnectionObjectConnectionType originator_to_target_connection_type =
+        ConnectionObjectGetOToTConnectionType(
+          connection_object);
+      ConnectionObjectConnectionType target_to_originator_connection_type =
+        ConnectionObjectGetTToOConnectionType(
+          connection_object);
+
+      connection_object->consumed_connection_path_length = 0;
+      connection_object->consumed_connection_path = NULL;
+      //connection_object->connection_path.connection_point[1] = 0; /* set not available path to Invalid */
+
+      size_t number_of_encoded_paths = 0; //TODO: NFO number of encoded paths should be 1 ???
+      CipConnectionPathEpath *paths_to_encode[2] = { 0 };
+      if (kConnectionObjectConnectionTypeNull ==
+          originator_to_target_connection_type) {
+        if (kConnectionObjectConnectionTypeNull ==
+            target_to_originator_connection_type) {                                        /* configuration only connection */
+          number_of_encoded_paths = 0;
+          OPENER_TRACE_WARN("assembly: type invalid\n");
+        } else { /* 1 path -> path is for production */
+          OPENER_TRACE_INFO("assembly: type produce\n");
+          number_of_encoded_paths = 1;
+          paths_to_encode[0] = &(connection_object->produced_path);
+        }
+      } else {
+        if (kConnectionObjectConnectionTypeNull ==
+            target_to_originator_connection_type) {                                        /* 1 path -> path is for consumption */
+          OPENER_TRACE_INFO("assembly: type consume\n");
+          number_of_encoded_paths = 1;
+          paths_to_encode[0] = &(connection_object->consumed_path);
+        } else { /* 2 paths -> 1st for production 2nd for consumption */
+          OPENER_TRACE_INFO("assembly: type bidirectional\n");
+          paths_to_encode[0] = &(connection_object->consumed_path);
+          paths_to_encode[1] = &(connection_object->produced_path);
+          number_of_encoded_paths = 2;
+        }
+      }
+
+      for (size_t i = 0; i < number_of_encoded_paths; i++) /* process up to 2 encoded paths */
+      {
+        if ( kLogicalSegmentLogicalTypeInstanceId ==
+             GetPathLogicalSegmentLogicalType(message) ||
+             kLogicalSegmentLogicalTypeConnectionPoint ==
+             GetPathLogicalSegmentLogicalType(message) )                                                                                                                                   /* Connection Point interpreted as InstanceNr -> only in Assembly Objects */
+        { /* Attribute Id or Connection Point */
+          CipDword attribute_id = CipEpathGetLogicalValue(&message);
+          CipConnectionPathEpath connection_epath = {
+            .class_id = class_id,
+            .instance_id = attribute_id,
+            .attribute_id_or_connection_point = 0
+          };
+          memcpy(paths_to_encode[i], &connection_epath,
+                 sizeof(connection_object->produced_path) );
+          OPENER_TRACE_INFO(
+            "connection point %" PRIu32 "\n",
+            attribute_id);
+          if ( NULL
+               == GetCipInstance(
+                 class,
+                 attribute_id) ) { /* Old code - Probably here the attribute ID marks the instance for the assembly object  */
+            *extended_error =
+              kConnectionManagerExtendedStatusCodeInconsistentApplicationPathCombo;
+            return kCipErrorConnectionFailure;
+          }
+          /* 1 or 2 16Bit word for the connection point part of the path */
+          remaining_path -= (attribute_id > 0xFF) ? 2 : 1;
+        } else {
+          *extended_error =
+            kConnectionManagerExtendedStatusCodeErrorInvalidSegmentTypeInPath;
+          return kCipErrorConnectionFailure;
+        }
+      }
+
+      g_config_data_length = 0;
+      g_config_data_buffer = NULL;
+
+      while (remaining_path > 0) { /* remaining_path_size something left in the path should be configuration data */
+
+        SegmentType segment_type = GetPathSegmentType(message);
+        switch (segment_type) {
+          case kSegmentTypeDataSegment: {
+            DataSegmentSubtype data_segment_type = GetPathDataSegmentSubtype(
+              message);
+            switch (data_segment_type) {
+              case kDataSegmentSubtypeSimpleData:
+                g_config_data_length = message[1] * 2; /*data segments store length 16-bit word wise */
+                g_config_data_buffer = (EipUint8 *) message + 2;
+                remaining_path -= (g_config_data_length + 2) / 2;
+                message += (g_config_data_length + 2);
+                break;
+              default:
+                OPENER_TRACE_ERR("Not allowed in connection manager");
+                break;
+            }
+          }
+          break;
+          case kSegmentTypeNetworkSegment: {
+            NetworkSegmentSubtype subtype = GetPathNetworkSegmentSubtype(
+              message);
+            switch (subtype) {
+              case kNetworkSegmentSubtypeProductionInhibitTimeInMilliseconds:
+                if (
+                  kConnectionObjectTransportClassTriggerProductionTriggerCyclic
+                  !=
+                  ConnectionObjectGetTransportClassTriggerProductionTrigger(
+                    connection_object) ) {
+                  /* only non cyclic connections may have a production inhibit */
+                  connection_object->production_inhibit_time = message[1];
+                  message += 2;
+                  remaining_path -= 2;
+                } else {
+                  *extended_error = connection_path_size - remaining_path; /*offset in 16Bit words where within the connection path the error happened*/
+                  return kCipErrorPathSegmentError; /*status code for invalid segment type*/
+                }
+                break;
+              default:
+                OPENER_TRACE_ERR("Not allowed in connection manager");
+                break;
+            }
+          }
+          break;
+
+          default:
+            OPENER_TRACE_WARN(
+              "No data segment identifier found for the configuration data\n");
+            *extended_error = connection_path_size - remaining_path; /*offset in 16Bit words where within the connection path the error happened*/
+            return
+              kConnectionManagerGeneralStatusPathSegmentErrorInUnconnectedSend;
+        }
+      }
+    }
+  }
+
+  OPENER_TRACE_INFO("Resulting PIT value: %u\n",
+                    connection_object->production_inhibit_time);
+  /*save back the current position in the stream allowing followers to parse anything thats still there*/
+  message_router_request->data = message;
+  return kEipStatusOk;
 }
 
 EipUint8 ParseConnectionPath(
