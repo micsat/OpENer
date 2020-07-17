@@ -1483,78 +1483,83 @@ EipUint8 ParseConnectionPath_NFO( //TODO: update for NFO request
       memcpy(&(connection_object->configuration_path),
              &connection_epath,
              sizeof(connection_object->configuration_path) );
-      ConnectionObjectConnectionType originator_to_target_connection_type =
-        ConnectionObjectGetOToTConnectionType(
-          connection_object);
-      ConnectionObjectConnectionType target_to_originator_connection_type =
-        ConnectionObjectGetTToOConnectionType(
-          connection_object);
+
+      //connection type NULL
+//      ConnectionObjectConnectionType originator_to_target_connection_type =
+//        ConnectionObjectGetOToTConnectionType(
+//          connection_object);
+//      ConnectionObjectConnectionType target_to_originator_connection_type =
+//        ConnectionObjectGetTToOConnectionType(
+//          connection_object);
 
       connection_object->consumed_connection_path_length = 0;
       connection_object->consumed_connection_path = NULL;
       //connection_object->connection_path.connection_point[1] = 0; /* set not available path to Invalid */
 
-      size_t number_of_encoded_paths = 0; //TODO: NFO number of encoded paths should be 1 ???
-      CipConnectionPathEpath *paths_to_encode[2] = { 0 };
-      if (kConnectionObjectConnectionTypeNull ==
-          originator_to_target_connection_type) {
-        if (kConnectionObjectConnectionTypeNull ==
-            target_to_originator_connection_type) {                                        /* configuration only connection */
-          number_of_encoded_paths = 0;
-          OPENER_TRACE_WARN("assembly: type invalid\n");
-        } else { /* 1 path -> path is for production */
-          OPENER_TRACE_INFO("assembly: type produce\n");
-          number_of_encoded_paths = 1;
-          paths_to_encode[0] = &(connection_object->produced_path);
-        }
-      } else {
-        if (kConnectionObjectConnectionTypeNull ==
-            target_to_originator_connection_type) {                                        /* 1 path -> path is for consumption */
-          OPENER_TRACE_INFO("assembly: type consume\n");
-          number_of_encoded_paths = 1;
-          paths_to_encode[0] = &(connection_object->consumed_path);
-        } else { /* 2 paths -> 1st for production 2nd for consumption */
-          OPENER_TRACE_INFO("assembly: type bidirectional\n");
-          paths_to_encode[0] = &(connection_object->consumed_path);
-          paths_to_encode[1] = &(connection_object->produced_path);
-          number_of_encoded_paths = 2;
-        }
-      }
+//      size_t number_of_encoded_paths = 0; //TODO: NFO number of encoded paths should be 1 or 0 ?
+//      CipConnectionPathEpath *paths_to_encode[2] = { 0 };
+//      if (kConnectionObjectConnectionTypeNull == //TODO: remove NFO check
+//          originator_to_target_connection_type) {
+//        if (kConnectionObjectConnectionTypeNull ==
+//            target_to_originator_connection_type) {                                        /* configuration only connection */
+//          number_of_encoded_paths = 0;
+//          OPENER_TRACE_WARN("assembly: type invalid\n");
+//        }
+//        else { /* 1 path -> path is for production */
+//          OPENER_TRACE_INFO("assembly: type produce\n");
+//          number_of_encoded_paths = 1;
+//          paths_to_encode[0] = &(connection_object->produced_path);
+//        }
+//      }
+//      else {
+//        if (kConnectionObjectConnectionTypeNull ==
+//            target_to_originator_connection_type) {                                        /* 1 path -> path is for consumption */
+//          OPENER_TRACE_INFO("assembly: type consume\n");
+//          number_of_encoded_paths = 1;
+//          paths_to_encode[0] = &(connection_object->consumed_path);
+//        } else { /* 2 paths -> 1st for production 2nd for consumption */
+//          OPENER_TRACE_INFO("assembly: type bidirectional\n");
+//          paths_to_encode[0] = &(connection_object->consumed_path);
+//          paths_to_encode[1] = &(connection_object->produced_path);
+//          number_of_encoded_paths = 2;
+//        }
+//      }
 
-      for (size_t i = 0; i < number_of_encoded_paths; i++) /* process up to 2 encoded paths */
-      {
-        if ( kLogicalSegmentLogicalTypeInstanceId ==
-             GetPathLogicalSegmentLogicalType(message) ||
-             kLogicalSegmentLogicalTypeConnectionPoint ==
-             GetPathLogicalSegmentLogicalType(message) )                                                                                                                                   /* Connection Point interpreted as InstanceNr -> only in Assembly Objects */
-        { /* Attribute Id or Connection Point */
-          CipDword attribute_id = CipEpathGetLogicalValue(&message);
-          CipConnectionPathEpath connection_epath = {
-            .class_id = class_id,
-            .instance_id = attribute_id,
-            .attribute_id_or_connection_point = 0
-          };
-          memcpy(paths_to_encode[i], &connection_epath,
-                 sizeof(connection_object->produced_path) );
-          OPENER_TRACE_INFO(
-            "connection point %" PRIu32 "\n",
-            attribute_id);
-          if ( NULL
-               == GetCipInstance(
-                 class,
-                 attribute_id) ) { /* Old code - Probably here the attribute ID marks the instance for the assembly object  */
-            *extended_error =
-              kConnectionManagerExtendedStatusCodeInconsistentApplicationPathCombo;
-            return kCipErrorConnectionFailure;
-          }
-          /* 1 or 2 16Bit word for the connection point part of the path */
-          remaining_path -= (attribute_id > 0xFF) ? 2 : 1;
-        } else {
-          *extended_error =
-            kConnectionManagerExtendedStatusCodeErrorInvalidSegmentTypeInPath;
-          return kCipErrorConnectionFailure;
-        }
-      }
+      //TODO: error
+//      for (size_t i = 0; i < number_of_encoded_paths; i++) /* process up to 2 encoded paths */
+//      {
+//        if ( kLogicalSegmentLogicalTypeInstanceId ==
+//             GetPathLogicalSegmentLogicalType(message) ||
+//             kLogicalSegmentLogicalTypeConnectionPoint ==
+//             GetPathLogicalSegmentLogicalType(message) )                                                                                                                                   /* Connection Point interpreted as InstanceNr -> only in Assembly Objects */
+//        { /* Attribute Id or Connection Point */
+//          CipDword attribute_id = CipEpathGetLogicalValue(&message);
+//          CipConnectionPathEpath connection_epath = {
+//            .class_id = class_id,
+//            .instance_id = attribute_id,
+//            .attribute_id_or_connection_point = 0
+//          };
+//          memcpy(paths_to_encode[i], &connection_epath,
+//                 sizeof(connection_object->produced_path) );
+//          OPENER_TRACE_INFO(
+//            "connection point %" PRIu32 "\n",
+//            attribute_id);
+//          if ( NULL
+//               == GetCipInstance(
+//                 class,
+//                 attribute_id) ) { /* Old code - Probably here the attribute ID marks the instance for the assembly object  */
+//            *extended_error =
+//              kConnectionManagerExtendedStatusCodeInconsistentApplicationPathCombo;
+//            return kCipErrorConnectionFailure;
+//          }
+//          /* 1 or 2 16Bit word for the connection point part of the path */
+//          remaining_path -= (attribute_id > 0xFF) ? 2 : 1;
+//        } else {
+//          *extended_error =
+//            kConnectionManagerExtendedStatusCodeErrorInvalidSegmentTypeInPath;
+//          return kCipErrorConnectionFailure;
+//        }
+//      }
 
       g_config_data_length = 0;
       g_config_data_buffer = NULL;
@@ -1620,6 +1625,7 @@ EipUint8 ParseConnectionPath_NFO( //TODO: update for NFO request
                     connection_object->production_inhibit_time);
   /*save back the current position in the stream allowing followers to parse anything thats still there*/
   message_router_request->data = message;
+  OPENER_TRACE_INFO("data_buffer: 0x%x\n", g_config_data_buffer); //TODO: remove
   return kEipStatusOk;
 }
 
