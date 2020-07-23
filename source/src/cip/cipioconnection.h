@@ -75,6 +75,8 @@ CipError OpenCommunicationChannels(CipConnectionObject *connection_object);
 void CloseCommunicationChannelsAndRemoveFromActiveConnectionsList(
   CipConnectionObject *connection_object);
 
+EipUint16 HandleConfigData(CipConnectionObject *connection_object);
+
 extern EipUint8 *g_config_data_buffer;
 extern unsigned int g_config_data_length;
 

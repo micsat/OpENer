@@ -378,10 +378,9 @@ EipStatus HandleNullNonMatchingForwardOpenRequest(
 			                                       connection_status);
 	}
 
-
 	if (g_config_data_length > 0) //TODO: checked in ParseConnectionPath ?
 	{
-		OPENER_TRACE_INFO("g_config_data_length: %d\n",g_config_data_length); //TODO: remove
+		OPENER_TRACE_INFO("g_config_data_length: %d bytes\n",g_config_data_length); //TODO: remove
 
 		//TODO:
 		/* Configure a device’s application, with the following characteristics
@@ -395,18 +394,23 @@ EipStatus HandleNullNonMatchingForwardOpenRequest(
 		 * •An electronic key segment may be included.
 		 *
 		 * •No connection is established.
-
 		 */
+
 		OPENER_TRACE_INFO("Configure a device’s application\n"); //TODO: update/remove ?
 
-			return AssembleForwardOpenResponse(
-				connection_object,
-				message_router_response,
-				kCipErrorSuccess,
-				kConnectionManagerGeneralStatusSuccess);
-//				kCipErrorConnectionFailure,
-//				kConnectionManagerExtendedStatusCodeNullForwardOpenNotSupported);
+		connection_status = HandleConfigData(&g_dummy_connection_object); //TODO: extended_error ??
 
+		if (kConnectionManagerGeneralStatusSuccess != connection_status) {
+
+		    return AssembleForwardOpenResponse(&g_dummy_connection_object,
+		                                       message_router_response, kCipErrorConnectionFailure,
+		                                       connection_status);
+		  } else {
+
+		    return AssembleForwardOpenResponse(&g_dummy_connection_object,
+		                                       message_router_response,
+		                                       kCipErrorSuccess, connection_status);
+		  }
 	}
 	else{
 		OPENER_TRACE_INFO("No data segment\n"); //TODO: remove
@@ -432,15 +436,6 @@ EipStatus HandleNullNonMatchingForwardOpenRequest(
 				kConnectionManagerExtendedStatusCodeInvalidConfigurationApplicationPath);
 		}
 	}
-
-	//TODO: remove
-//	OPENER_TRACE_INFO("Right now we cannot handle Null requests_NFO_Non_Matching\n");
-//
-//	return AssembleForwardOpenResponse(
-//		connection_object,
-//		message_router_response,
-//		kCipErrorConnectionFailure,
-//		kConnectionManagerExtendedStatusCodeNullForwardOpenNotSupported);
 }
 
 
@@ -492,7 +487,7 @@ EipStatus HandleNullMatchingForwardOpenRequest(
 
 	if (g_config_data_length > 0)
 	{
-		OPENER_TRACE_INFO("g_config_data_length: %d\n",g_config_data_length); //TODO: remove
+		OPENER_TRACE_INFO("g_config_data_length: %d bytes\n",g_config_data_length); //TODO: remove
 
 		/*TODO: re-configure a device’s application, check if data correct - see NFO_Non matching configuration
 
@@ -1297,7 +1292,7 @@ EipUint8 ParseConnectionPath_NFO( //TODO: update for NFO request
   /* with 256 we mark that we haven't got a PIT segment */
   ConnectionObjectSetProductionInhibitTime(connection_object, 256);
 
-  size_t header_length = g_kForwardOpenHeaderLength;
+  size_t header_length = g_kForwardOpenHeaderLength;  //TODO: create function check_header_lenghth ???
   if (connection_object->is_large_forward_open) {
     header_length = g_kLargeForwardOpenHeaderLength;
   }
@@ -1318,7 +1313,7 @@ EipUint8 ParseConnectionPath_NFO( //TODO: update for NFO request
     return kCipErrorNotEnoughData;
   }
 
-  if (remaining_path > 0) {
+  if (remaining_path > 0) {  //TODO: create function check_electronic_key ???
     /* first look if there is an electronic key */
     if ( kSegmentTypeLogicalSegment == GetPathSegmentType(message) ) {
       if ( kLogicalSegmentLogicalTypeSpecial
@@ -1565,7 +1560,6 @@ EipUint8 ParseConnectionPath_NFO( //TODO: update for NFO request
       g_config_data_buffer = NULL;
 
       while (remaining_path > 0) { /* remaining_path_size something left in the path should be configuration data */
-
         SegmentType segment_type = GetPathSegmentType(message);
         switch (segment_type) {
           case kSegmentTypeDataSegment: {
@@ -1625,7 +1619,13 @@ EipUint8 ParseConnectionPath_NFO( //TODO: update for NFO request
                     connection_object->production_inhibit_time);
   /*save back the current position in the stream allowing followers to parse anything thats still there*/
   message_router_request->data = message;
-  OPENER_TRACE_INFO("data_buffer: 0x%x\n", g_config_data_buffer); //TODO: remove
+
+  OPENER_TRACE_INFO("data_buffer: 0x"); //TODO: remove
+  for (int i=0; i < g_config_data_length; i++){
+	  OPENER_TRACE_INFO("%x", *(g_config_data_buffer+i)); //TODO: remove
+  }
+  OPENER_TRACE_INFO("\n"); //TODO: remove
+
   return kEipStatusOk;
 }
 
