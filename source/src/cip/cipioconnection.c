@@ -643,20 +643,23 @@ EipUint16 HandleConfigData(CipConnectionObject *connection_object) {
       OPENER_ASSERT(NULL != attribute_three);
       CipByteArray *attribute_three_data =
         (CipByteArray *) attribute_three->data;
+
+      OPENER_TRACE_INFO("attribute_three_data-length: %d bytes\n",attribute_three_data->length); //TODO: remove
+
       OPENER_ASSERT(NULL != attribute_three_data);
       if (attribute_three_data->length != g_config_data_length) {
         connection_manager_status =
           kConnectionManagerExtendedStatusCodeErrorOwnershipConflict;
         OPENER_TRACE_INFO(
-          "Hit an Ownership conflict in cipioconnection.c occurrence 1");
+          "Hit an Ownership conflict in cipioconnection.c occurrence 1\n");
       } else {
-        /*FIXME check if this is correct */
+        /*FIXME check if this is correct */ //TODO: update for Re-Configuration
         if ( memcmp(attribute_three_data->data, g_config_data_buffer,
                     g_config_data_length) ) {
           connection_manager_status =
             kConnectionManagerExtendedStatusCodeErrorOwnershipConflict;
           OPENER_TRACE_INFO(
-            "Hit an Ownership conflict in cipioconnection.c occurrence 2");
+            "Hit an Ownership conflict in cipioconnection.c occurrence 2\n");
         }
       }
     } else {

@@ -398,7 +398,7 @@ EipStatus HandleNullNonMatchingForwardOpenRequest(
 
 		OPENER_TRACE_INFO("Configure a device’s application\n"); //TODO: update/remove ?
 
-		connection_status = HandleConfigData(&g_dummy_connection_object); //TODO: extended_error ??
+		connection_status = HandleConfigData(&g_dummy_connection_object);
 
 		if (kConnectionManagerGeneralStatusSuccess != connection_status) {
 
@@ -503,29 +503,30 @@ EipStatus HandleNullMatchingForwardOpenRequest(
 
 					-The connection shall not be interrupted due to this request.
 			*/
+		OPENER_TRACE_INFO("Re-configure a device’s application\n"); //TODO: remove?
+
+		connection_status = HandleConfigData(&g_dummy_connection_object);
+
+		if (kConnectionManagerGeneralStatusSuccess != connection_status) {
+
+			return AssembleForwardOpenResponse(&g_dummy_connection_object,
+					message_router_response, kCipErrorConnectionFailure,
+					connection_status);
+		} else {
+
+			return AssembleForwardOpenResponse(&g_dummy_connection_object,
+					message_router_response, kCipErrorSuccess,
+					connection_status);
+		}
 
 	}
-	else{
-		//error
+	else{// invalid path
+		return AssembleForwardOpenResponse(
+			connection_object,
+			message_router_response,
+			kCipErrorConnectionFailure,
+			kConnectionManagerExtendedStatusCodeInvalidConfigurationApplicationPath);
 	}
-
-	//TODO: remove section
-//#######################
-	CipDword class_c = connection_object->configuration_path.class_id;
-	CipDword inst_c = connection_object->configuration_path.instance_id;
-
-	OPENER_TRACE_INFO("configuration_path:\nclass:%d\ninstance:%d\n",class_c,inst_c);
-
-	OPENER_TRACE_INFO("Right now we cannot handle Null requests_NFO_Matching\n");
-
-	return AssembleForwardOpenResponse(
-		connection_object,
-		message_router_response,
-//		kCipErrorSuccess,
-//		kConnectionManagerGeneralStatusSuccess);
-	    kCipErrorConnectionFailure,
-	    kConnectionManagerExtendedStatusCodeNullForwardOpenNotSupported);
-//#########################
 }
 
 /** @brief Handles a Non Null Matching Forward Open Request
