@@ -396,7 +396,7 @@ EipStatus HandleNullNonMatchingForwardOpenRequest(
 		 * •No connection is established.
 		 */
 
-		OPENER_TRACE_INFO("Configure a device’s application\n"); //TODO: update/remove ?
+		OPENER_TRACE_INFO("Configure a device’s application\n"); //TODO: remove ?
 
 		connection_status = HandleConfigData(&g_dummy_connection_object);
 
@@ -413,14 +413,12 @@ EipStatus HandleNullNonMatchingForwardOpenRequest(
 		  }
 	}
 	else{
-		OPENER_TRACE_INFO("No data segment\n"); //TODO: remove
+		OPENER_TRACE_INFO("No data segment\n"); //TODO: remove ?
 
 		if(kCipIdentityClassCode == connection_object->configuration_path.class_id &&
 				1 == connection_object->configuration_path.instance_id) // path “20 01 24 01” is used to ping a device
 		{
 			OPENER_TRACE_INFO("Ping a device\n");
-			// Electronic key segment may be included ??? - checked in ParseConnectionPath ??
-			// No connection is established
 
 			return AssembleForwardOpenResponse(
 			    connection_object,
@@ -489,21 +487,7 @@ EipStatus HandleNullMatchingForwardOpenRequest(
 	{
 		OPENER_TRACE_INFO("g_config_data_length: %d bytes\n",g_config_data_length); //TODO: remove
 
-		/*TODO: re-configure a device’s application, check if data correct - see NFO_Non matching configuration
-
-					YES:  Path is for re-configuration
-
-					NO:	error
-
-					-A configuration application path and data segment shall be included in the request and they
-						are sent to the application to change the application configuration.
-
-					-If the entire configuration cannot be applied then none of the configuration shall be applied
-						and the appropriate error code returned.
-
-					-The connection shall not be interrupted due to this request.
-			*/
-		OPENER_TRACE_INFO("Re-configure a device’s application\n"); //TODO: remove?
+		OPENER_TRACE_INFO("Re-Configure a device’s application\n"); //TODO: remove?
 
 		connection_status = HandleConfigData(&g_dummy_connection_object);
 
@@ -1435,7 +1419,7 @@ EipUint8 ParseConnectionPath_NFO( //TODO: update for NFO request
       OPENER_TRACE_INFO("no config data\n");
     }
 
-    if ( kConnectionObjectTransportClassTriggerTransportClass3 ==
+    if ( kConnectionObjectTransportClassTriggerTransportClass3 ==  //TODO: create function check_TransportClass3 ???
          ConnectionObjectGetTransportClassTriggerTransportClass(
            connection_object) )
     {
@@ -1621,11 +1605,13 @@ EipUint8 ParseConnectionPath_NFO( //TODO: update for NFO request
   /*save back the current position in the stream allowing followers to parse anything thats still there*/
   message_router_request->data = message;
 
-  OPENER_TRACE_INFO("data_buffer: 0x"); //TODO: remove
+  //TODO: remove section ####################################
+  OPENER_TRACE_INFO("data_buffer: 0x");
   for (int i=0; i < g_config_data_length; i++){
-	  OPENER_TRACE_INFO("%x", *(g_config_data_buffer+i)); //TODO: remove
+	  OPENER_TRACE_INFO("%x", *(g_config_data_buffer+i));
   }
   OPENER_TRACE_INFO("\n"); //TODO: remove
+  // ##########################################################
 
   return kEipStatusOk;
 }
