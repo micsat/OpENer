@@ -155,6 +155,20 @@ EipUint8 ParseConnectionPath(
   CipMessageRouterRequest *message_router_request,
   EipUint16 *extended_error);
 
+/** @brief Check header-length of a forward open request
+ *
+ * @param connection_object pointer to the connection object structure for which the connection should
+ *                      be established
+ * @param message_router_request pointer to the received request structure. The position of the data stream pointer has to be at the connection length entry
+ * @param remaining_path size of path to check
+ * @return general status
+ *    - kEipStatusOk ... on check passed
+ *    - On an error the general status code is set to "not enough data" or "too much data"
+ */
+EipUint8 CheckForwardOpenHeaderLength(CipConnectionObject *connection_object,
+		CipMessageRouterRequest *message_router_request,
+		size_t remaining_path);
+
 ConnectionManagementHandling *GetConnectionManagementEntry(
   const EipUint32 class_id);
 
@@ -1261,6 +1275,32 @@ EipStatus CheckElectronicKeyData(
     kEipStatusOk : kEipStatusError;
 }
 
+EipUint8 CheckForwardOpenHeaderLength(CipConnectionObject *connection_object,
+		CipMessageRouterRequest *message_router_request, size_t remaining_path) {
+
+	size_t header_length = g_kForwardOpenHeaderLength;
+	if (connection_object->is_large_forward_open) {
+		header_length = g_kLargeForwardOpenHeaderLength;
+	}
+
+	if ((header_length + remaining_path * 2)
+			< message_router_request->request_path_size) {
+		/* the received packet is larger than the data in the path */
+		OPENER_TRACE_INFO("Message too long for path\n");
+		return kCipErrorTooMuchData;
+	}
+
+	if ((header_length + remaining_path * 2)
+			> message_router_request->request_path_size) {
+		/*there is not enough data in received packet */
+		OPENER_TRACE_INFO("Message not long enough for path\n");
+		return kCipErrorNotEnoughData;
+	}
+	/*packet-lenght as expected */
+	return kEipStatusOk;
+
+}
+
 EipUint8 ParseConnectionPath_NFO( //TODO: update for NFO request
   CipConnectionObject *connection_object,
   CipMessageRouterRequest *message_router_request,
@@ -1277,26 +1317,13 @@ EipUint8 ParseConnectionPath_NFO( //TODO: update for NFO request
   /* with 256 we mark that we haven't got a PIT segment */
   ConnectionObjectSetProductionInhibitTime(connection_object, 256);
 
-  size_t header_length = g_kForwardOpenHeaderLength;  //TODO: create function check_header_lenghth ???
-  if (connection_object->is_large_forward_open) {
-    header_length = g_kLargeForwardOpenHeaderLength;
-  }
+  EipUint8 temp_status = CheckForwardOpenHeaderLength(connection_object,
+			message_router_request, remaining_path);
 
-  if ( (header_length + remaining_path * 2)
-       < message_router_request->request_path_size ) {
-    /* the received packet is larger than the data in the path */
-    *extended_error = 0;
-    OPENER_TRACE_INFO("Message too long for path\n");
-    return kCipErrorTooMuchData;
-  }
-
-  if ( (header_length + remaining_path * 2)
-       > message_router_request->request_path_size ) {
-    /*there is not enough data in received packet */
-    *extended_error = 0;
-    OPENER_TRACE_INFO("Message not long enough for path\n");
-    return kCipErrorNotEnoughData;
-  }
+	if (kEipStatusOk != temp_status) {
+		*extended_error = 0;
+		return temp_status;
+	}
 
   if (remaining_path > 0) {  //TODO: create function check_electronic_key ???
     /* first look if there is an electronic key */
@@ -1476,9 +1503,9 @@ EipUint8 ParseConnectionPath_NFO( //TODO: update for NFO request
       connection_object->consumed_connection_path = NULL;
       //connection_object->connection_path.connection_point[1] = 0; /* set not available path to Invalid */
 
-//      size_t number_of_encoded_paths = 0; //TODO: NFO number of encoded paths should be 1 or 0 ?
+//      size_t number_of_encoded_paths = 0;
 //      CipConnectionPathEpath *paths_to_encode[2] = { 0 };
-//      if (kConnectionObjectConnectionTypeNull == //TODO: remove NFO check
+//      if (kConnectionObjectConnectionTypeNull ==
 //          originator_to_target_connection_type) {
 //        if (kConnectionObjectConnectionTypeNull ==
 //            target_to_originator_connection_type) {                                        /* configuration only connection */
@@ -1545,6 +1572,7 @@ EipUint8 ParseConnectionPath_NFO( //TODO: update for NFO request
       g_config_data_buffer = NULL;
 
       while (remaining_path > 0) { /* remaining_path_size something left in the path should be configuration data */
+    	  //TODO: check, could be connection point segment ???
         SegmentType segment_type = GetPathSegmentType(message);
         switch (segment_type) {
           case kSegmentTypeDataSegment: {
@@ -1587,6 +1615,7 @@ EipUint8 ParseConnectionPath_NFO( //TODO: update for NFO request
                 break;
             }
           }
+
           break;
 
           default:
@@ -1632,25 +1661,13 @@ EipUint8 ParseConnectionPath(
   /* with 256 we mark that we haven't got a PIT segment */
   ConnectionObjectSetProductionInhibitTime(connection_object, 256);
 
-  size_t header_length = g_kForwardOpenHeaderLength;
-  if (connection_object->is_large_forward_open) {
-    header_length = g_kLargeForwardOpenHeaderLength;
-  }
+  EipUint8 temp_status = CheckForwardOpenHeaderLength(connection_object,
+ 			message_router_request, remaining_path);
 
-  if ( (header_length + remaining_path * 2)
-       < message_router_request->request_path_size ) {
-    /* the received packet is larger than the data in the path */
-    *extended_error = 0;
-    return kCipErrorTooMuchData;
-  }
-
-  if ( (header_length + remaining_path * 2)
-       > message_router_request->request_path_size ) {
-    /*there is not enough data in received packet */
-    *extended_error = 0;
-    OPENER_TRACE_INFO("Message not long enough for path\n");
-    return kCipErrorNotEnoughData;
-  }
+ 	if (kEipStatusOk != temp_status) {
+ 		*extended_error = 0;
+ 		return temp_status;
+ 	}
 
   if (remaining_path > 0) {
     /* first look if there is an electronic key */
@@ -1893,7 +1910,7 @@ EipUint8 ParseConnectionPath(
       g_config_data_buffer = NULL;
 
       while (remaining_path > 0) { /* remaining_path_size something left in the path should be configuration data */
-
+    	  //TODO: check, could be connection point segment ???
         SegmentType segment_type = GetPathSegmentType(message);
         switch (segment_type) {
           case kSegmentTypeDataSegment: {
