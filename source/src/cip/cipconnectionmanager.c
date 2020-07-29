@@ -1618,6 +1618,23 @@ EipUint8 ParseConnectionPath_NFO( //TODO: update for NFO request
 
           break;
 
+		  case kSegmentTypeLogicalSegment: { //TODO: update
+				LogicalSegmentLogicalType logical_type =
+						GetPathLogicalSegmentLogicalType(message);
+				switch (logical_type) {
+				case kLogicalSegmentLogicalTypeConnectionPoint:
+					OPENER_TRACE_INFO("LogicalTypeConnectionPoint\n");
+					message += 2;
+					remaining_path -= 2;
+					break;
+				default:
+
+					break;
+				}
+
+			}
+			break	;
+
           default:
             OPENER_TRACE_WARN(
               "No data segment identifier found for the configuration data\n");
