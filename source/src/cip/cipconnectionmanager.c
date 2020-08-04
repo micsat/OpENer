@@ -373,7 +373,7 @@ EipStatus HandleNullNonMatchingForwardOpenRequest(
   CipMessageRouterResponse *message_router_response
   ) {
 
-	/*TODO: check if data segment present in Application path: g_config_data_length > 0
+	/* check if data segment present in Application path: g_config_data_length > 0    //TODO: remove?
 
 		YES:  Path is for configuration
 
@@ -392,12 +392,11 @@ EipStatus HandleNullNonMatchingForwardOpenRequest(
 			                                       connection_status);
 	}
 
-	if (g_config_data_length > 0) //TODO: checked in ParseConnectionPath ?
+	if (g_config_data_length > 0)
 	{
 		OPENER_TRACE_INFO("g_config_data_length: %d bytes\n",g_config_data_length); //TODO: remove
 
-		//TODO:
-		/* Configure a device’s application, with the following characteristics
+		/* Configure a device’s application, with the following characteristics  //TODO: remove?
 		 *
 		 * •A configuration application path and data segment shall be included in the request.
 		 * The data is sent to the application specified by the path and applied.
@@ -426,9 +425,7 @@ EipStatus HandleNullNonMatchingForwardOpenRequest(
 		                                       kCipErrorSuccess, connection_status);
 		  }
 	}
-	else{
-		OPENER_TRACE_INFO("No data segment\n"); //TODO: remove ?
-
+	else{ //check if configuration path is identity-object
 		if(kCipIdentityClassCode == connection_object->configuration_path.class_id &&
 				1 == connection_object->configuration_path.instance_id) // path “20 01 24 01” is used to ping a device
 		{
@@ -470,7 +467,7 @@ EipStatus HandleNullMatchingForwardOpenRequest(
   CipMessageRouterResponse *message_router_response
   ) {
 
-	/*TODO: check if data segment present in Application path: g_config_data_length > 0
+	/* check if data segment present in Application path: g_config_data_length > 0    //TODO: remove?
 
 			YES:  Path is for configuration
 
@@ -496,10 +493,9 @@ EipStatus HandleNullMatchingForwardOpenRequest(
 		                                       connection_status);
 	}
 
-
 	if (g_config_data_length > 0)
 	{
-		OPENER_TRACE_INFO("g_config_data_length: %d bytes\n",g_config_data_length); //TODO: remove
+		OPENER_TRACE_INFO("g_config_data_length: %d bytes\n",g_config_data_length); //TODO: remove?
 
 		OPENER_TRACE_INFO("Re-Configure a device’s application\n"); //TODO: remove?
 
@@ -518,7 +514,7 @@ EipStatus HandleNullMatchingForwardOpenRequest(
 		}
 
 	}
-	else{// invalid path
+	else{ // no config-data -> invalid path
 		return AssembleForwardOpenResponse(
 			connection_object,
 			message_router_response,
@@ -1320,10 +1316,10 @@ EipUint8 ParseConnectionPath_NFO( //TODO: update for NFO request
   EipUint8 temp_status = CheckForwardOpenHeaderLength(connection_object,
 			message_router_request, remaining_path);
 
-	if (kEipStatusOk != temp_status) {
+  if (kEipStatusOk != temp_status) {
 		*extended_error = 0;
 		return temp_status;
-	}
+  }
 
   if (remaining_path > 0) {  //TODO: create function check_electronic_key ???
     /* first look if there is an electronic key */
