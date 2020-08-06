@@ -109,6 +109,21 @@ EipStatus AssembleForwardCloseResponse(
 CipConnectionObject *CheckForExistingConnection(
   const CipConnectionObject *const connection_object);
 
+/** @brief check the electronic key received with a forward open request. //TODO: update params
+ *
+ * @param connection_object pointer to the connection object structure
+ * @param message_router_request pointer to the received request structure. The position of the data stream pointer has to be at the connection length entry
+ * @param remaining_path size of path to check
+ * @param extended_status the extended error code in case an error happened
+ * @return general status on the establishment
+ *    - EIP_OK ... on success
+ *    - On an error the general status code to be put into the response
+ */
+EipStatus CheckElectronicKey(CipConnectionObject *connection_object,
+		CipMessageRouterRequest *message_router_request,
+		size_t remaining_path,
+		EipUint16 *extended_status);
+
 /** @brief Compare the electronic key received with a forward open request with the device's data.
  *
  * @param key_format format identifier given in the forward open request
@@ -123,11 +138,10 @@ EipStatus CheckElectronicKeyData(
   void *key_data,
   EipUint16 *extended_status);
 
-/** @brief Parse the connection path of a forward open request
+/** @brief Parse the connection path of a null forward open request
  *
  * This function will take the connection object and the received data stream and parse the connection path.
- * @param connection_object pointer to the connection object structure for which the connection should
- *                      be established
+ * @param connection_object pointer to the connection object structure
  * @param message_router_request pointer to the received request structure. The position of the data stream pointer has to be at the connection length entry
  * @param extended_error the extended error code in case an error happened
  * @return general status on the establishment
@@ -1297,6 +1311,53 @@ EipUint8 CheckForwardOpenHeaderLength(CipConnectionObject *connection_object,
 
 }
 
+EipStatus CheckElectronicKey(CipConnectionObject *connection_object,
+		CipMessageRouterRequest *message_router_request, size_t remaining_path,
+		EipUint16 *extended_status) {
+
+	const EipUint8 *message = message_router_request->data;
+	if (kElectronicKeySegmentFormatKeyFormat4
+			== GetPathLogicalSegmentElectronicKeyFormat(message)) {
+		/* Check if there is enough data for holding the electronic key segment */
+		if (remaining_path < 5) {
+			//*extended_error = 0;
+			OPENER_TRACE_INFO("Message not long enough for electronic key\n");
+			return kCipErrorNotEnoughData;
+		}
+		/* Electronic key format 4 found */
+		connection_object->electronic_key.key_format = 4;
+		ElectronicKeyFormat4 *electronic_key = ElectronicKeyFormat4New();
+		GetElectronicKeyFormat4FromMessage(&message, electronic_key);
+		/* logical electronic key found */
+		connection_object->electronic_key.key_data = electronic_key;
+
+		remaining_path -= 5; /*length of the electronic key*/
+		OPENER_TRACE_INFO(
+				"key: ven ID %d, dev type %d, prod code %d, major %d, minor %d\n",
+				ElectronicKeyFormat4GetVendorId(connection_object->electronic_key.
+						key_data),
+				ElectronicKeyFormat4GetDeviceType(connection_object->
+						electronic_key.key_data),
+				ElectronicKeyFormat4GetProductCode(connection_object->
+						electronic_key.key_data),
+				ElectronicKeyFormat4GetMajorRevision(connection_object->
+						electronic_key.key_data),
+				ElectronicKeyFormat4GetMinorRevision(connection_object->
+						electronic_key.key_data) );
+		if (kEipStatusOk
+				!= CheckElectronicKeyData(
+						connection_object->electronic_key.key_format,
+						connection_object->electronic_key.key_data,
+						extended_status)) {
+			ElectronicKeyFormat4Delete(&electronic_key);
+			return kCipErrorConnectionFailure;
+		}
+		ElectronicKeyFormat4Delete(&electronic_key);
+	}
+	OPENER_TRACE_INFO("electronic key checked\n"); //TODO: remove
+	return kCipErrorSuccess;
+}
+
 EipUint8 ParseConnectionPath_NFO( //TODO: update for NFO request
   CipConnectionObject *connection_object,
   CipMessageRouterRequest *message_router_request,
@@ -1321,52 +1382,20 @@ EipUint8 ParseConnectionPath_NFO( //TODO: update for NFO request
 		return temp_status;
   }
 
-  if (remaining_path > 0) {  //TODO: create function check_electronic_key ???
+  if (remaining_path > 0) {
     /* first look if there is an electronic key */
     if ( kSegmentTypeLogicalSegment == GetPathSegmentType(message) ) {
       if ( kLogicalSegmentLogicalTypeSpecial
            == GetPathLogicalSegmentLogicalType(message) ) {
         if ( kLogicalSegmentSpecialTypeLogicalFormatElectronicKey
              == GetPathLogicalSegmentSpecialTypeLogicalType(message) ) {
-          if ( kElectronicKeySegmentFormatKeyFormat4
-               == GetPathLogicalSegmentElectronicKeyFormat(message) ) {
-            /* Check if there is enough data for holding the electronic key segment */
-            if (remaining_path < 5) {
-              *extended_error = 0;
-              OPENER_TRACE_INFO("Message not long enough for electronic key\n");
-              return kCipErrorNotEnoughData;
-            }
-            /* Electronic key format 4 found */
-            connection_object->electronic_key.key_format = 4;
-            ElectronicKeyFormat4 *electronic_key = ElectronicKeyFormat4New();
-            GetElectronicKeyFormat4FromMessage(&message, electronic_key);
-            /* logical electronic key found */
-            connection_object->electronic_key.key_data = electronic_key;
 
-
-            remaining_path -= 5; /*length of the electronic key*/
-            OPENER_TRACE_INFO(
-              "key: ven ID %d, dev type %d, prod code %d, major %d, minor %d\n",
-              ElectronicKeyFormat4GetVendorId(connection_object->electronic_key.
-                                              key_data),
-              ElectronicKeyFormat4GetDeviceType(connection_object->
-                                                electronic_key.key_data),
-              ElectronicKeyFormat4GetProductCode(connection_object->
-                                                 electronic_key.key_data),
-              ElectronicKeyFormat4GetMajorRevision(connection_object->
-                                                   electronic_key.key_data),
-              ElectronicKeyFormat4GetMinorRevision(connection_object->
-                                                   electronic_key.key_data) );
-            if ( kEipStatusOk
-                 != CheckElectronicKeyData(
-                   connection_object->electronic_key.key_format,
-                   connection_object->electronic_key.key_data,
-                   extended_error) ) {
-              ElectronicKeyFormat4Delete(&electronic_key);
-              return kCipErrorConnectionFailure;
-            }
-            ElectronicKeyFormat4Delete(&electronic_key);
-          }
+        	temp_status = CheckElectronicKey(connection_object,
+        			message_router_request, remaining_path, extended_error);
+			if (kEipStatusOk != temp_status) {
+					*extended_error = 0;
+					return temp_status;
+			  }
 
         } else {
           OPENER_TRACE_INFO("no key\n");
@@ -1619,7 +1648,7 @@ EipUint8 ParseConnectionPath_NFO( //TODO: update for NFO request
 						GetPathLogicalSegmentLogicalType(message);
 				switch (logical_type) {
 				case kLogicalSegmentLogicalTypeConnectionPoint:
-					OPENER_TRACE_INFO("LogicalTypeConnectionPoint\n");
+					OPENER_TRACE_INFO("LogicalTypeConnectionPoint\n"); //TODO: remove
 					message += 2;
 					remaining_path -= 2;
 					break;
@@ -1682,58 +1711,28 @@ EipUint8 ParseConnectionPath(
  		return temp_status;
  	}
 
-  if (remaining_path > 0) {
-    /* first look if there is an electronic key */
-    if ( kSegmentTypeLogicalSegment == GetPathSegmentType(message) ) {
-      if ( kLogicalSegmentLogicalTypeSpecial
-           == GetPathLogicalSegmentLogicalType(message) ) {
-        if ( kLogicalSegmentSpecialTypeLogicalFormatElectronicKey
-             == GetPathLogicalSegmentSpecialTypeLogicalType(message) ) {
-          if ( kElectronicKeySegmentFormatKeyFormat4
-               == GetPathLogicalSegmentElectronicKeyFormat(message) ) {
-            /* Check if there is enough data for holding the electronic key segment */
-            if (remaining_path < 5) {
-              *extended_error = 0;
-              OPENER_TRACE_INFO("Message not long enough for electronic key\n");
-              return kCipErrorNotEnoughData;
-            }
-            /* Electronic key format 4 found */
-            connection_object->electronic_key.key_format = 4;
-            ElectronicKeyFormat4 *electronic_key = ElectronicKeyFormat4New();
-            GetElectronicKeyFormat4FromMessage(&message, electronic_key);
-            /* logical electronic key found */
-            connection_object->electronic_key.key_data = electronic_key;
+	if (remaining_path > 0) {
+		/* first look if there is an electronic key */
+		if (kSegmentTypeLogicalSegment == GetPathSegmentType(message)) {
+			if (kLogicalSegmentLogicalTypeSpecial
+					== GetPathLogicalSegmentLogicalType(message)) {
+				if (kLogicalSegmentSpecialTypeLogicalFormatElectronicKey
+						== GetPathLogicalSegmentSpecialTypeLogicalType(
+								message)) {
 
+					temp_status = CheckElectronicKey(connection_object,
+							message_router_request, remaining_path,
+							extended_error);
+					if (kEipStatusOk != temp_status) {
+						*extended_error = 0;
+						return temp_status;
+					}
 
-            remaining_path -= 5; /*length of the electronic key*/
-            OPENER_TRACE_INFO(
-              "key: ven ID %d, dev type %d, prod code %d, major %d, minor %d\n",
-              ElectronicKeyFormat4GetVendorId(connection_object->electronic_key.
-                                              key_data),
-              ElectronicKeyFormat4GetDeviceType(connection_object->
-                                                electronic_key.key_data),
-              ElectronicKeyFormat4GetProductCode(connection_object->
-                                                 electronic_key.key_data),
-              ElectronicKeyFormat4GetMajorRevision(connection_object->
-                                                   electronic_key.key_data),
-              ElectronicKeyFormat4GetMinorRevision(connection_object->
-                                                   electronic_key.key_data) );
-            if ( kEipStatusOk
-                 != CheckElectronicKeyData(
-                   connection_object->electronic_key.key_format,
-                   connection_object->electronic_key.key_data,
-                   extended_error) ) {
-              ElectronicKeyFormat4Delete(&electronic_key);
-              return kCipErrorConnectionFailure;
-            }
-            ElectronicKeyFormat4Delete(&electronic_key);
-          }
-
-        } else {
-          OPENER_TRACE_INFO("no key\n");
-        }
-      }
-    }
+				} else {
+					OPENER_TRACE_INFO("no key\n");
+				}
+			}
+		}
 
     //TODO: Refactor this afterwards
     if ( kConnectionObjectTransportClassTriggerProductionTriggerCyclic
