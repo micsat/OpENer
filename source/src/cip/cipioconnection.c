@@ -644,17 +644,6 @@ EipUint16 HandleConfigData(CipConnectionObject *connection_object) {
       CipByteArray *attribute_three_data =
         (CipByteArray *) attribute_three->data;
 
-
-      //TODO: remove section ####################################
-      	  OPENER_TRACE_INFO("attribute_three_data-length: %d bytes\n",attribute_three_data->length); //TODO: remove
-
-        OPENER_TRACE_INFO("attribute_three_data: 0x");
-        for (int i=0; i < attribute_three_data->length; i++){
-      	  OPENER_TRACE_INFO("%x", *(attribute_three_data->data + i));
-        }
-        OPENER_TRACE_INFO("\n");
-        // ##########################################################
-
       OPENER_ASSERT(NULL != attribute_three_data);
       if (attribute_three_data->length != g_config_data_length) {
         connection_manager_status =
