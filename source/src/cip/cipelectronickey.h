@@ -11,6 +11,8 @@
 
 #include "typedefs.h"
 
+#include "opener_api.h"
+
 /** @brief CIP Electronic Key Segment struct
  *
  */
@@ -148,5 +150,34 @@ void ElectronicKeyFormat4SetMinorRevision(
  */
 CipUsint ElectronicKeyFormat4GetMinorRevision(
   const ElectronicKeyFormat4 *const electronic_key);
+
+/** @brief check the electronic key received with a forward open request.
+ *
+ * @param connection_object pointer to the connection object structure
+ * @param message_router_request pointer to the received request structure. The position of the data stream pointer has to be at the connection length entry
+ * @param remaining_path size of path to check
+ * @param extended_status the extended error code in case an error happened
+ * @return general status on the establishment
+ *    - EIP_OK ... on success
+ *    - On an error the general status code to be put into the response
+ */
+EipStatus CheckElectronicKey(CipConnectionObject *connection_object,
+		CipMessageRouterRequest *message_router_request, size_t remaining_path,
+		EipUint16 *extended_status);
+
+
+/** @brief Compare the electronic key received with a forward open request with the device's data.
+ *
+ * @param key_format format identifier given in the forward open request
+ * @param key_data pointer to the electronic key data received in the forward open request
+ * @param extended_status the extended error code in case an error happened
+ * @return general status on the establishment
+ *    - EIP_OK ... on success
+ *    - On an error the general status code to be put into the response
+ */
+EipStatus CheckElectronicKeyData(
+  EipUint8 key_format,
+  void *key_data,
+  EipUint16 *extended_status);
 
 #endif /* SRC_CIP_CIPELECTRONICKEY_H_ */
