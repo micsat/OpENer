@@ -1243,6 +1243,7 @@ EipUint8 ParseConnectionPath_NFO(
 					*extended_error = 0;
 					return temp_status;
 			  }
+			//TODO: fix remaining_path BUG
 
         } else {
           OPENER_TRACE_INFO("no key\n");
@@ -1363,7 +1364,7 @@ EipUint8 ParseConnectionPath_NFO(
              &connection_epath,
              sizeof(connection_object->configuration_path) );
 
-      connection_object->consumed_connection_path_length = 0; //TODO: check if necessary
+      connection_object->consumed_connection_path_length = 0;
       connection_object->consumed_connection_path = NULL;
 
       connection_object->produced_connection_path_length = 0;
@@ -1373,36 +1374,74 @@ EipUint8 ParseConnectionPath_NFO(
       g_config_data_length = 0;
       g_config_data_buffer = NULL;
 
-      while (remaining_path > 0) {
-    	  SegmentType segment_type = GetPathSegmentType(message);
-        switch (segment_type) {
-          case kSegmentTypeDataSegment: {
-            DataSegmentSubtype data_segment_type = GetPathDataSegmentSubtype(
-              message);
-            switch (data_segment_type) {
-              case kDataSegmentSubtypeSimpleData:
-                g_config_data_length = message[1] * 2; /*data segments store length 16-bit word wise */
-                g_config_data_buffer = (EipUint8 *) message + 2;
-                remaining_path -= (g_config_data_length + 2) / 2;
-                message += (g_config_data_length + 2);
-                break;
-              default:
-                OPENER_TRACE_ERR("Not allowed in connection manager!\n");
-                break;
-            }
-          }
-          break;
+		while (remaining_path > 0) {
+			OPENER_TRACE_INFO("message %x\n",*message); //TODO: remove
+			OPENER_TRACE_INFO("remaining_path %d\n", remaining_path); //TODO: remove
+			SegmentType segment_type = GetPathSegmentType(message);
+			switch (segment_type) {
+			case kSegmentTypeDataSegment: {
+				DataSegmentSubtype data_segment_type =
+						GetPathDataSegmentSubtype(message);
+				switch (data_segment_type) {
+				case kDataSegmentSubtypeSimpleData:
+					g_config_data_length = message[1] * 2; /*data segments store length 16-bit word wise */
+					g_config_data_buffer = (EipUint8*) message + 2;
+					remaining_path -= (g_config_data_length + 2) / 2;
+					message += (g_config_data_length + 2);
+					break;
+				default:
+					OPENER_TRACE_ERR("Not allowed in connection manager!\n");
+					break;
+				}
+			}
+				break;
 
-          default:
-        	  message += 2;  //edit pointer for next path segment
-        	  remaining_path -= 1;
-        	  break;
+			case kSegmentTypeNetworkSegment: { //TODO: do nothing ??
+				NetworkSegmentSubtype subtype =
+						GetPathNetworkSegmentSubtype(message);
+				switch (subtype) {
+				case kNetworkSegmentSubtypeProductionInhibitTimeInMilliseconds:
+//							if (kConnectionObjectTransportClassTriggerProductionTriggerCyclic
+//									!= ConnectionObjectGetTransportClassTriggerProductionTrigger(
+//											connection_object)) {
+//								/* only non cyclic connections may have a production inhibit */
+//	//							connection_object->production_inhibit_time =
+//	//									message[1];
+//								message += 2;
+//								remaining_path -= 2;// error: should be 1?
+//							} else {
+//								*extended_error = connection_path_size
+//										- remaining_path; /*offset in 16Bit words where within the connection path the error happened*/
+//								return kCipErrorPathSegmentError; /*status code for invalid segment type*/
+//							}
 
-//            OPENER_TRACE_WARN("No data segment identifier found for the configuration data\n");
-//            *extended_error = connection_path_size - remaining_path; /*offset in 16Bit words where within the connection path the error happened*/
-//            return kConnectionManagerGeneralStatusPathSegmentErrorInUnconnectedSend;
-        }
-      }
+					message += 2;
+					remaining_path -= 1;
+					break;
+				default:
+					OPENER_TRACE_ERR("Not allowed in connection manager");
+					break;
+				}
+			}
+				break;
+
+			case kSegmentTypeLogicalSegment: //TODO: ignore paths 2 and 3
+
+				message += 2;
+				remaining_path -= 1;
+
+				break;
+
+			default:
+	//        	  		message += 2;  //edit pointer for next path segment //TODO: remove section
+	//        	  		remaining_path -= 1;
+	//        	  		break;
+
+				OPENER_TRACE_WARN("No data segment identifier found for the configuration data\n");
+				*extended_error = connection_path_size - remaining_path; /*offset in 16Bit words where within the connection path the error happened*/
+				return kConnectionManagerGeneralStatusPathSegmentErrorInUnconnectedSend;
+			}
+		}
     }
   }
 
@@ -1462,6 +1501,7 @@ EipUint8 ParseConnectionPath(
 						*extended_error = 0;
 						return temp_status;
 					}
+					//TODO: fix remaining_path BUG
 
 				} else {
 					OPENER_TRACE_INFO("no key\n");
@@ -1657,7 +1697,6 @@ EipUint8 ParseConnectionPath(
       g_config_data_buffer = NULL;
 
       while (remaining_path > 0) { /* remaining_path_size something left in the path should be configuration data */
-    	  //TODO: check, could be connection point segment ???
         SegmentType segment_type = GetPathSegmentType(message);
         switch (segment_type) {
           case kSegmentTypeDataSegment: {
