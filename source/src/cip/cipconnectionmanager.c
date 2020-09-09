@@ -1230,26 +1230,29 @@ EipUint8 ParseConnectionPath_NFO(
   }
 
   if (remaining_path > 0) {
-    /* first look if there is an electronic key */
-    if ( kSegmentTypeLogicalSegment == GetPathSegmentType(message) ) {
-      if ( kLogicalSegmentLogicalTypeSpecial
-           == GetPathLogicalSegmentLogicalType(message) ) {
-        if ( kLogicalSegmentSpecialTypeLogicalFormatElectronicKey
-             == GetPathLogicalSegmentSpecialTypeLogicalType(message) ) {
+		/* first look if there is an electronic key */
+		if (kSegmentTypeLogicalSegment == GetPathSegmentType(message)) {
+			if (kLogicalSegmentLogicalTypeSpecial
+					== GetPathLogicalSegmentLogicalType(message)) {
+				if (kLogicalSegmentSpecialTypeLogicalFormatElectronicKey
+						== GetPathLogicalSegmentSpecialTypeLogicalType(
+								message)) {
 
-        	temp_status = CheckElectronicKey(connection_object,
-        			message_router_request, remaining_path, extended_error);
-			if (kEipStatusOk != temp_status) {
-					*extended_error = 0;
-					return temp_status;
-			  }
-			//TODO: fix remaining_path BUG
+					temp_status = CheckElectronicKey(connection_object, message,
+							remaining_path, extended_error);
 
-        } else {
-          OPENER_TRACE_INFO("no key\n");
-        }
-      }
-    }
+					if (kEipStatusOk != temp_status) {
+						*extended_error = 0;
+						return temp_status;
+					}
+					remaining_path -= 5; /*length of the electronic key*/
+					message += 10;
+
+				} else {
+					OPENER_TRACE_INFO("no key\n");
+				}
+			}
+		}
 
     if ( kConnectionObjectTransportClassTriggerProductionTriggerCyclic
          != ConnectionObjectGetTransportClassTriggerProductionTrigger(
@@ -1494,14 +1497,15 @@ EipUint8 ParseConnectionPath(
 						== GetPathLogicalSegmentSpecialTypeLogicalType(
 								message)) {
 
-					temp_status = CheckElectronicKey(connection_object,
-							message_router_request, remaining_path,
-							extended_error);
+					temp_status = CheckElectronicKey(connection_object, message,
+							remaining_path, extended_error);
+
 					if (kEipStatusOk != temp_status) {
 						*extended_error = 0;
 						return temp_status;
 					}
-					//TODO: fix remaining_path BUG
+					remaining_path -= 5; /*length of the electronic key*/
+					message += 10;
 
 				} else {
 					OPENER_TRACE_INFO("no key\n");

@@ -195,10 +195,10 @@ EipStatus CheckElectronicKeyData(
 }
 
 EipStatus CheckElectronicKey(CipConnectionObject *connection_object,
-		CipMessageRouterRequest *message_router_request, size_t remaining_path,
+		const unsigned char *const message,
+		size_t remaining_path,
 		EipUint16 *extended_status) {
 
-	const EipUint8 *message = message_router_request->data;
 	if (kElectronicKeySegmentFormatKeyFormat4
 			== GetPathLogicalSegmentElectronicKeyFormat(message)) {
 		/* Check if there is enough data for holding the electronic key segment */
@@ -214,7 +214,6 @@ EipStatus CheckElectronicKey(CipConnectionObject *connection_object,
 		/* logical electronic key found */
 		connection_object->electronic_key.key_data = electronic_key;
 
-		remaining_path -= 5; /*length of the electronic key*/
 		OPENER_TRACE_INFO(
 				"key: ven ID %d, dev type %d, prod code %d, major %d, minor %d\n",
 				ElectronicKeyFormat4GetVendorId(connection_object->electronic_key.

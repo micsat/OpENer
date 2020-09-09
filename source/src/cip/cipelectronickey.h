@@ -154,7 +154,7 @@ CipUsint ElectronicKeyFormat4GetMinorRevision(
 /** @brief check the electronic key received with a forward open request.
  *
  * @param connection_object pointer to the connection object structure
- * @param message_router_request pointer to the received request structure. The position of the data stream pointer has to be at the connection length entry
+ * @param message pointer to the EPath message
  * @param remaining_path size of path to check
  * @param extended_status the extended error code in case an error happened
  * @return general status on the establishment
@@ -162,7 +162,8 @@ CipUsint ElectronicKeyFormat4GetMinorRevision(
  *    - On an error the general status code to be put into the response
  */
 EipStatus CheckElectronicKey(CipConnectionObject *connection_object,
-		CipMessageRouterRequest *message_router_request, size_t remaining_path,
+		const unsigned char *const message,
+		size_t remaining_path,
 		EipUint16 *extended_status);
 
 
