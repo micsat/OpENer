@@ -379,22 +379,7 @@ EipStatus HandleNullNonMatchingForwardOpenRequest(
 
 	if (g_config_data_length > 0)
 	{
-		OPENER_TRACE_INFO("g_config_data_length: %d bytes\n",g_config_data_length); //TODO: remove
-
-		/* Configure a device’s application, with the following characteristics  //TODO: remove?
-		 *
-		 * •A configuration application path and data segment shall be included in the request.
-		 * The data is sent to the application specified by the path and applied.
-		 *
-		 * •If the entire configuration cannot be applied then none of the configuration shall be
-		 * applied and the appropriate error code returned.
-		 *
-		 * •An electronic key segment may be included.
-		 *
-		 * •No connection is established.
-		 */
-
-		OPENER_TRACE_INFO("Configure a device’s application\n"); //TODO: remove ?
+		OPENER_TRACE_INFO("Configure a device’s application\n");
 
 		connection_status = HandleConfigData(&g_dummy_connection_object);
 
@@ -410,8 +395,9 @@ EipStatus HandleNullNonMatchingForwardOpenRequest(
 		                                       kCipErrorSuccess, connection_status);
 		  }
 	}
-	else{ //check if configuration path is identity-object
-		OPENER_TRACE_INFO("No configuration data found!\n"); //TODO: remove ??
+	else{ //no config-data, check if configuration path is identity-object
+		OPENER_TRACE_INFO("No configuration data found!\n");
+
 		if(kCipIdentityClassCode == connection_object->configuration_path.class_id &&
 				1 == connection_object->configuration_path.instance_id) // path “20 01 24 01” is used to ping a device
 		{
@@ -1271,6 +1257,7 @@ EipUint8 ParseConnectionPath_NFO(
       }
     }
 
+    /* First application path: for configuration or pinging a device  */
     if (kSegmentTypeLogicalSegment == GetPathSegmentType(message) &&
         kLogicalSegmentLogicalTypeClassId ==
         GetPathLogicalSegmentLogicalType(message) ) {
@@ -1302,67 +1289,30 @@ EipUint8 ParseConnectionPath_NFO(
     remaining_path -= 1; /* 1 16Bit word for the class part of the path */
 
     /* Get instance ID */
-    if ( kSegmentTypeLogicalSegment == GetPathSegmentType(message) &&
-         kLogicalSegmentLogicalTypeInstanceId ==
-         GetPathLogicalSegmentLogicalType(message) ) {                                                                                                       /* store the configuration ID for later checking in the application connection types */
-      instance_id = CipEpathGetLogicalValue(&message);
+	if (kSegmentTypeLogicalSegment == GetPathSegmentType(message)
+			&& kLogicalSegmentLogicalTypeInstanceId
+					== GetPathLogicalSegmentLogicalType(message)) { /* store the configuration ID for later checking in the application connection types */
+		instance_id = CipEpathGetLogicalValue(&message);
 
-      OPENER_TRACE_INFO("Configuration instance id %" PRId32 "\n",
-                        instance_id);
-      if ( NULL == GetCipInstance(class, instance_id) ) {
-        /*according to the test tool we should respond with this extended error code */
-        *extended_error =
-          kConnectionManagerExtendedStatusCodeErrorInvalidSegmentTypeInPath;
-        return kCipErrorConnectionFailure;
-      }
-      /* 1 or 2 16Bit words for the configuration instance part of the path  */
-      remaining_path -= (instance_id > 0xFF) ? 2 : 1; //TODO: 32 bit case missing
-    } else {
-      OPENER_TRACE_INFO("no config data\n");
-    }
+		OPENER_TRACE_INFO("Configuration instance id %" PRId32 "\n",
+				instance_id);
+		if ( NULL == GetCipInstance(class, instance_id)) {
+			/*according to the test tool we should respond with this extended error code */
+			*extended_error =
+					kConnectionManagerExtendedStatusCodeErrorInvalidSegmentTypeInPath;
+			return kCipErrorConnectionFailure;
+		}
+		/* 1 or 2 16Bit words for the configuration instance part of the path  */
+		remaining_path -= (instance_id > 0xFF) ? 2 : 1; //TODO: 32 bit case missing
+	} else {
+		OPENER_TRACE_INFO("no config data\n");
+	}
 
-    if ( kConnectionObjectTransportClassTriggerTransportClass3 ==  //TODO: create function check_TransportClass3 ???
-         ConnectionObjectGetTransportClassTriggerTransportClass(
-           connection_object) )
-    {
-//      /*we have Class 3 connection*/
-//    	OPENER_TRACE_INFO("we have Class 3 connection\n"); //TODO: remove trace info
-//      if (remaining_path > 0) {
-//        OPENER_TRACE_WARN(
-//          "Too much data in connection path for class 3 connection\n");
-//        *extended_error =
-//          kConnectionManagerExtendedStatusCodeErrorInvalidSegmentTypeInPath;
-//        return kCipErrorConnectionFailure;
-//      }
-//
-//      /* connection end point has to be the message router instance 1 */
-//      if ( (class_id != kCipMessageRouterClassCode)
-//           || (1 != instance_id) ) {
-//        *extended_error =
-//          kConnectionManagerExtendedStatusCodeInconsistentApplicationPathCombo;
-//        return kCipErrorConnectionFailure;
-//      }
-//      /* Configuration connection point is producing connection point */
-//      CipConnectionPathEpath connection_epath = {
-//        .class_id = class_id,
-//        .instance_id = instance_id,
-//        .attribute_id_or_connection_point = 0
-//      };
-//
-//      memcpy(&(connection_object->configuration_path),
-//             &connection_epath,
-//             sizeof(connection_object->configuration_path) );
-//      memcpy(&(connection_object->produced_path), &connection_epath,
-//             sizeof(connection_object->produced_path) );
-
-
-      /* End class 3 connection handling */
-    } else { /* we have an IO connection */
-      CipConnectionPathEpath connection_epath = {
-        .class_id = class_id,
-        .instance_id = instance_id,
-        .attribute_id_or_connection_point = 0
-      };
+	  CipConnectionPathEpath connection_epath = {
+		.class_id = class_id,
+		.instance_id = instance_id,
+		.attribute_id_or_connection_point = 0
+	  };
       memcpy(&(connection_object->configuration_path),
              &connection_epath,
              sizeof(connection_object->configuration_path) );
@@ -1378,8 +1328,8 @@ EipUint8 ParseConnectionPath_NFO(
       g_config_data_buffer = NULL;
 
 		while (remaining_path > 0) {
-			OPENER_TRACE_INFO("message %x\n",*message); //TODO: remove
-			OPENER_TRACE_INFO("remaining_path %d\n", remaining_path); //TODO: remove
+			OPENER_TRACE_INFO("message %x\n",*message); //TODO: remove debug trace
+			OPENER_TRACE_INFO("remaining_path %d\n", remaining_path); //TODO: remove debug trace
 			SegmentType segment_type = GetPathSegmentType(message);
 			switch (segment_type) {
 			case kSegmentTypeDataSegment: {
@@ -1397,56 +1347,71 @@ EipUint8 ParseConnectionPath_NFO(
 					break;
 				}
 			}
-				break;
+			break;
 
-			case kSegmentTypeNetworkSegment: { //TODO: do nothing ??
+			case kSegmentTypeNetworkSegment: {
 				NetworkSegmentSubtype subtype =
 						GetPathNetworkSegmentSubtype(message);
 				switch (subtype) {
 				case kNetworkSegmentSubtypeProductionInhibitTimeInMilliseconds:
-//							if (kConnectionObjectTransportClassTriggerProductionTriggerCyclic
-//									!= ConnectionObjectGetTransportClassTriggerProductionTrigger(
-//											connection_object)) {
-//								/* only non cyclic connections may have a production inhibit */
-//	//							connection_object->production_inhibit_time =
-//	//									message[1];
-//								message += 2;
-//								remaining_path -= 2;// error: should be 1?
-//							} else {
-//								*extended_error = connection_path_size
-//										- remaining_path; /*offset in 16Bit words where within the connection path the error happened*/
-//								return kCipErrorPathSegmentError; /*status code for invalid segment type*/
-//							}
+					if (kConnectionObjectTransportClassTriggerProductionTriggerCyclic
+							!= ConnectionObjectGetTransportClassTriggerProductionTrigger(
+									connection_object)) {
+						/* only non cyclic connections may have a production inhibit */
+						connection_object->production_inhibit_time = message[1];
+						message += 2;
+						remaining_path -= 1;
+					} else {
+						*extended_error = connection_path_size - remaining_path; /*offset in 16Bit words where within the connection path the error happened*/
+						return kCipErrorPathSegmentError; /*status code for invalid segment type*/
+					}
 
-					message += 2;
-					remaining_path -= 1;
 					break;
 				default:
 					OPENER_TRACE_ERR("Not allowed in connection manager");
+					*extended_error = connection_path_size - remaining_path; /*offset in 16Bit words where within the connection path the error happened*/
+					return kConnectionManagerGeneralStatusPathSegmentErrorInUnconnectedSend;
 					break;
 				}
 			}
-				break;
+			break;
 
-			case kSegmentTypeLogicalSegment: //TODO: ignore paths 2 and 3
+			case kSegmentTypeLogicalSegment:{ //ignore paths 2 and 3 and connection points  //TODO: check if this is correct
+				LogicalSegmentLogicalType subtype =	GetPathLogicalSegmentLogicalType(message);
+				switch (subtype) {
+					case kLogicalSegmentLogicalTypeClassId: //ignore segment
+						message += 2;
+						remaining_path -= 1;
 
-				message += 2;
-				remaining_path -= 1;
+					break;
+					case kLogicalSegmentLogicalTypeInstanceId: //ignore segment
+											message += 2;
+											remaining_path -= 1;
 
-				break;
+					break;
+					case kLogicalSegmentLogicalTypeConnectionPoint: //ignore connection points
+						OPENER_TRACE_INFO("Connection point ignored\n");
+						message += 2;
+						remaining_path -= 1;
+
+					break;
+
+					default:
+						OPENER_TRACE_ERR("Not allowed in connection manager");
+						*extended_error = connection_path_size - remaining_path; /*offset in 16Bit words where within the connection path the error happened*/
+						return kConnectionManagerGeneralStatusPathSegmentErrorInUnconnectedSend;
+						break;
+				}
+			}
+			break;
 
 			default:
-	//        	  		message += 2;  //edit pointer for next path segment //TODO: remove section
-	//        	  		remaining_path -= 1;
-	//        	  		break;
-
-				OPENER_TRACE_WARN("No data segment identifier found for the configuration data\n");
 				*extended_error = connection_path_size - remaining_path; /*offset in 16Bit words where within the connection path the error happened*/
 				return kConnectionManagerGeneralStatusPathSegmentErrorInUnconnectedSend;
 			}
-		}
-    }
-  }
+
+		}//end while
+  }// if (remaining_path > 0)
 
   OPENER_TRACE_INFO("Resulting PIT value: %u\n",
                     connection_object->production_inhibit_time);
