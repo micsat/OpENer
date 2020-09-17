@@ -1377,23 +1377,60 @@ EipUint8 ParseConnectionPath_NFO(
 			break;
 
 			case kSegmentTypeLogicalSegment:{ //ignore paths 2 and 3 and connection points  //TODO: check if this is correct
+
 				LogicalSegmentLogicalType subtype =	GetPathLogicalSegmentLogicalType(message);
 				switch (subtype) {
-					case kLogicalSegmentLogicalTypeClassId: //ignore segment
-						message += 2;
-						remaining_path -= 1;
+					case kLogicalSegmentLogicalTypeClassId: //Application path
+						class_id = CipEpathGetLogicalValue(&message); //message += 2
+						class = GetCipClass(class_id);
+						if (NULL == class) {
+							OPENER_TRACE_ERR("class id %" PRIx32 " not found\n",
+									class_id);
+
+							if (class_id >= 0xC8) { /*reserved range of class ids */
+								*extended_error =
+										kConnectionManagerExtendedStatusCodeErrorInvalidSegmentTypeInPath;
+							} else {
+								*extended_error =
+										kConnectionManagerExtendedStatusCodeInconsistentApplicationPathCombo;
+							}
+							return kCipErrorConnectionFailure;
+						}
+
+						OPENER_TRACE_INFO("classid %" PRIx32 " (%s)\n",
+								class_id,
+								class->class_name);
+						remaining_path -= 1; /* 1 16Bit word for the class part of the path */
+
+						if (kLogicalSegmentLogicalTypeInstanceId
+							== GetPathLogicalSegmentLogicalType(message)) {
+							instance_id = CipEpathGetLogicalValue(&message); //message += 2
+
+							OPENER_TRACE_INFO("instance id %" PRId32 "\n",
+									instance_id);
+							if ( NULL == GetCipInstance(class, instance_id)) {
+								/*according to the test tool we should respond with this extended error code */
+								*extended_error =
+										kConnectionManagerExtendedStatusCodeErrorInvalidSegmentTypeInPath;
+								return kCipErrorConnectionFailure;
+							}
+							/* 1 or 2 16Bit words for the configuration instance part of the path  */
+							remaining_path -= (instance_id > 0xFF) ? 2 : 1; //TODO: 32 bit case missing
+						}
+						if (kLogicalSegmentLogicalTypeAttributeId
+								== GetPathLogicalSegmentLogicalType(message)) {
+							//TODO: what to check?
+							message += 2;
+							remaining_path -= 1; /* 1 16Bit word for the attribute part of the path */
+						}
+						OPENER_TRACE_INFO("Application path ignored\n");
 
 					break;
-					case kLogicalSegmentLogicalTypeInstanceId: //ignore segment
-											message += 2;
-											remaining_path -= 1;
 
-					break;
-					case kLogicalSegmentLogicalTypeConnectionPoint: //ignore connection points
-						OPENER_TRACE_INFO("Connection point ignored\n");
-						message += 2;
-						remaining_path -= 1;
-
+					case kLogicalSegmentLogicalTypeConnectionPoint:
+							OPENER_TRACE_INFO("Connection point ignored\n");
+							message += 2;
+							remaining_path -= 1;
 					break;
 
 					default:
@@ -1402,6 +1439,7 @@ EipUint8 ParseConnectionPath_NFO(
 						return kConnectionManagerGeneralStatusPathSegmentErrorInUnconnectedSend;
 						break;
 				}
+
 			}
 			break;
 
